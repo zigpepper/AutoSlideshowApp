@@ -13,11 +13,30 @@ import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.os.Handler;
+import java.util.Timer;
+import java.util.TimerTask;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.os.Bundle;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
     private static final int PERMISSIONS_REQUEST_CODE = 100;
     Cursor cursor;
+    ContentResolver resolver;
+    ImageView imageVIew;
+
+    Timer timer;
+
+    Handler handler = new Handler();
+
+    Button button1;
+    Button button2;
+    Button button3;
+
+    boolean playing = false;  //スライドショーの現在の状態を判定 trueなら再生中
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,13 +58,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             getContentsInfo();
         }
 
-        Button button1 = (Button) findViewById(R.id.button1);
+        button1 = (Button) findViewById(R.id.button1);
         button1.setOnClickListener(this);
 
-        Button button2 = (Button) findViewById(R.id.button2);
+        button2 = (Button) findViewById(R.id.button2);
         button2.setOnClickListener(this);
 
-        Button button3 = (Button) findViewById(R.id.button3);
+        button3 = (Button) findViewById(R.id.button3);
         button3.setOnClickListener(this);
     }
 
@@ -62,11 +81,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
-    private Cursor getContentsInfo() {
+    private void getContentsInfo() {
 
         // 画像の情報を取得する
-        ContentResolver resolver = getContentResolver();
-        Cursor cursor = resolver.query(
+        resolver = getContentResolver();
+        cursor = resolver.query(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI, // データの種類
                 null, // 項目(null = 全項目)
                 null, // フィルタ条件(null = フィルタなし)
@@ -77,7 +96,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (cursor.moveToFirst()) {
             showImage(cursor);
         }
-        return cursor;
     }
 
     public void showImage(Cursor cursor) {
@@ -85,30 +103,71 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Long id = cursor.getLong(fieldIndex);
         Uri imageUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id);
 
-        ImageView imageVIew = (ImageView) findViewById(R.id.imageView);
+        imageVIew = (ImageView) findViewById(R.id.imageView);
         imageVIew.setImageURI(imageUri);
     }
 
     public void onClick(View v) {
-        Cursor cursor = getContentsInfo();
-        if (v.getId() == R.id.button1) {
-            if (cursor.moveToNext()) {
-                showImage(cursor);
-            } else if (cursor.moveToFirst()) {
-                showImage(cursor);
+        if (cursor == null) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setMessage("画像が読み込めません");
+            builder.show();
+
+        }else {
+
+            if (v.getId() == R.id.button1) {            //進むボタン
+                if (cursor.moveToNext()) {
+                    showImage(cursor);
+                } else if (cursor.moveToFirst()) {
+                    showImage(cursor);
+                }
+
+            } else if (v.getId() == R.id.button2) {          //戻るボタン
+                if (cursor.moveToPrevious()) {
+                    showImage(cursor);
+                } else if (cursor.moveToLast()) {
+                    showImage(cursor);
+                }
+
+            } else if (v.getId() == R.id.button3) {   //再生/停止ボタン
+
+                if (!playing && timer == null) {                 //再生ボタン
+                    button1.setEnabled(false);  //進むボタンと戻るボタンを無効化
+                    button2.setEnabled(false);
+
+                    timer = new Timer();
+                    timer.schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            handler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (cursor.moveToNext()) {
+                                        showImage(cursor);
+                                    } else if (cursor.moveToFirst()) {
+                                        showImage(cursor);
+                                    }
+                                }
+                            });
+                        }
+                    }, 2000, 2000);
+
+                    playing = true;
+                    button3.setText(R.string.button_pause);
+
+
+                } else if (playing && timer != null) {                            //停止ボタン
+                    timer.cancel();
+                    playing = false;
+                    timer = null;
+                    button3.setText(R.string.button_play);
+
+                    button1.setEnabled(true);  //進むボタンと戻るボタンの復活
+                    button2.setEnabled(true);
+
+                }
             }
-
-        } else if (v.getId() == R.id.button2) {
-            if (cursor.moveToPrevious()) {
-                showImage(cursor);
-            } else if (cursor.moveToLast()) {
-                showImage(cursor);
-            }
-
-        } else if (v.getId() == R.id.button3) {     //再生停止ボタン
-
-        } else {
-
         }
     }
+
 }
